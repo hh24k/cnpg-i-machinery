@@ -266,17 +266,6 @@ func (s *Server) buildTLSConfig(ctx context.Context) (*tls.Config, error) {
 		"clientCertPath", s.ClientCertPath,
 	)
 
-	caCertPool := x509.NewCertPool()
-	caBytes, err := os.ReadFile(filepath.Clean(s.ClientCertPath))
-	if err != nil {
-		logger.Error(err, "failed to read client public key")
-		return nil, fmt.Errorf("failed to read client public key: %w", err)
-	}
-	if ok := caCertPool.AppendCertsFromPEM(caBytes); !ok {
-		logger.Error(err, "failed to parse client public key")
-		return nil, fmt.Errorf("failed to parse client public key: %w", err)
-	}
-
 	return &tls.Config{
 		ClientAuth: tls.RequireAndVerifyClientCert,
 		GetCertificate: func(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
@@ -288,7 +277,23 @@ func (s *Server) buildTLSConfig(ctx context.Context) (*tls.Config, error) {
 
 			return &cert, nil
 		},
-		ClientCAs:  caCertPool,
+		GetConfigForClient: func(_ *tls.ClientHelloInfo) (*tls.Config, error) {
+
+			caCertPool := x509.NewCertPool()
+			caBytes, err := os.ReadFile(filepath.Clean(s.ClientCertPath))
+			if err != nil {
+				logger.Error(err, "failed to read client public key")
+				return nil, fmt.Errorf("failed to read client public key: %w", err)
+			}
+			if ok := caCertPool.AppendCertsFromPEM(caBytes); !ok {
+				logger.Error(err, "failed to parse client public key")
+				return nil, fmt.Errorf("failed to parse client public key: %w", err)
+			}
+
+			return &tls.Config{
+				RootCAs: caCertPool,
+			}, nil
+		},
 		MinVersion: tls.VersionTLS13,
 	}, nil
 }
